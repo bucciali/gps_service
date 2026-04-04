@@ -1,0 +1,125 @@
+package db
+
+import (
+	"context"
+	"errors"
+	"time"
+
+	"github.com/jackc/pgx/v5/pgxpool"
+)
+
+type Users struct {
+	UserId       string    `json:"user_id"`
+	Email        string    `json:"email"`
+	PasswordHash string    `json:"password_hash"`
+	Role         string    `json:"role"`
+	CreatedAt    time.Time `json:"created_at"`
+}
+
+type Point struct {
+	PointId     string    `json:"point_id"`
+	Name        string    `json:"name"`
+	Description string    `json:"description"`
+	Latitude    float64   `json:"latitude"`
+	Longitude   float64   `json:"longitude"`
+	TypeID      string    `json:"type_id"`
+	CreatedBy   string    `json:"created_by"`
+	CreatedAt   time.Time `json:"created_at"`
+}
+
+func DeletePoint(ctx context.Context, pool *pgxpool.Pool, id string) error {
+	result, err := pool.Exec(ctx, `DELETE FROM points WHERE point_id = $1`, id)
+	if err != nil {
+		return err
+	}
+
+	if result.RowsAffected() == 0 {
+		return errors.New("point is not found")
+	}
+
+	return nil
+}
+
+func UpdatePoint(ctx context.Context, pool *pgxpool.Pool, p Point) error {
+	query := `UPDATE points
+		SET name = $1, description = $2, latitude = $3, longitude = $4, type_id = $5
+		WHERE point_id = $6`
+
+	result, err := pool.Exec(ctx, query,
+		p.Name, p.Description, p.Latitude, p.Longitude, p.TypeID, p.PointId)
+	if err != nil {
+		return err
+	}
+
+	if result.RowsAffected() == 0 {
+		return errors.New("point is not found")
+	}
+
+	return nil
+}
+
+func CreatePoint(ctx context.Context, pool *pgxpool.Pool, p Point) (Point, error) {
+	query := `INSERT INTO points (name, description, latitude, longitude, type_id, created_by)
+		VALUES ($1, $2, $3, $4, $5, $6)
+		RETURNING point_id, created_at`
+
+	err := pool.QueryRow(ctx, query,
+		p.Name, p.Description, p.Latitude, p.Longitude, p.TypeID, p.CreatedBy,
+	).Scan(&p.PointId, &p.CreatedAt)
+	if err != nil {
+		return Point{}, err
+	}
+
+	return p, nil
+}
+
+func GetPoints(ctx context.Context, pool *pgxpool.Pool) ([]Point, error) {
+	query := `SELECT point_id, name, description, latitude, longitude, type_id, created_by, created_at
+		FROM points
+		ORDER BY created_at DESC;
+	`
+	rows, err := pool.Query(ctx, query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var points []Point
+	for rows.Next() {
+		var point Point
+		err := rows.Scan(
+			&point.PointId,
+			&point.Name,
+			&point.Description,
+			&point.Latitude,
+			&point.Longitude,
+			&point.TypeID,
+			&point.CreatedBy,
+			&point.CreatedAt,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		points = append(points, point)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return points, nil
+
+}
+
+func NewPostgresPool(ctx context.Context, dsn string) (*pgxpool.Pool, error) {
+	pool, err := pgxpool.New(ctx, dsn)
+	if err != nil {
+
+		return nil, err
+	}
+	if err := pool.Ping(ctx); err != nil {
+		pool.Close()
+		return nil, err
+	}
+	return pool, nil
+}
