@@ -16,7 +16,7 @@ func Load() (*Config, error) {
 	godotenv.Load()
 	return &Config{
 		ServerPort:  os.Getenv("SERVER_PORT"),
-		DatabaseURL: os.Getenv("DATABASE_URL"),
-		JWTSecret:   os.Getenv("JWT_SECRET"),
+		DataBaseUrl: os.Getenv("DATABASE_URL"),
+		JwtSecret:   os.Getenv("JWT_SECRET"),
 	}, nil
 }

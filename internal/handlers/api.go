@@ -2,8 +2,10 @@ package handlers
 
 import (
 	"encoding/json"
-	"map-backend/internal/db"
-	"map-backend/internal/response"
+	"gps_service/internal/auth"
+	"gps_service/internal/db"
+	"gps_service/internal/response"
+
 	"net/http"
 	"strings"
 
@@ -11,6 +13,14 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog/log"
 )
+
+type LoginRequest struct {
+	Role string `json:"role"`
+}
+
+type TokenResponse struct {
+	Token string `json:"token"`
+}
 
 type CreatePointRequest struct {
 	Name        string  `json:"name"`
@@ -55,7 +65,11 @@ func CreatePointHandler(pool *pgxpool.Pool) http.HandlerFunc {
 			return
 		}
 
-		userID := r.Context().Value("user_id").(string)
+		userID, ok := auth.GetUserFromContext(r.Context())
+		if !ok {
+			response.WriteError(w, http.StatusUnauthorized, "user not found in context")
+			return
+		}
 
 		p := db.Point{
 			Name:        req.Name,
@@ -68,6 +82,7 @@ func CreatePointHandler(pool *pgxpool.Pool) http.HandlerFunc {
 
 		created, err := db.CreatePoint(r.Context(), pool, p)
 		if err != nil {
+			log.Error().Err(err).Msg("failed to create point")
 			response.WriteError(w, http.StatusInternalServerError, "failed to create point")
 			return
 		}
@@ -125,6 +140,48 @@ func DeletePointHandler(pool *pgxpool.Pool) http.HandlerFunc {
 		}
 		response.WriteJSON(w, http.StatusOK, map[string]any{
 			"message": "deleted",
+		})
+	}
+}
+
+func DummyLoginHandler(jwtManager *auth.JWTManager, pool *pgxpool.Pool) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var req LoginRequest
+		err := json.NewDecoder(r.Body).Decode(&req)
+		if err != nil {
+			response.WriteError(w, http.StatusBadRequest, "invalid request body")
+			return
+		}
+
+		var userID string
+		var email string
+
+		switch req.Role {
+		case "admin":
+			userID = "11111111-1111-1111-1111-111111111111"
+			email = "admin@dummy.local"
+		case "user":
+			userID = "22222222-2222-2222-2222-222222222222"
+			email = "user@dummy.local"
+		default:
+			response.WriteError(w, http.StatusBadRequest, "invalid role")
+			return
+		}
+
+		err = db.EnsureUserExists(r.Context(), userID, email, req.Role, pool)
+		if err != nil {
+			response.WriteError(w, http.StatusInternalServerError, "failed to ensure dummy user")
+			return
+		}
+
+		token, err := jwtManager.GenerateToken(userID, req.Role)
+		if err != nil {
+			response.WriteError(w, http.StatusInternalServerError, "failed to generate token")
+			return
+		}
+
+		response.WriteJSON(w, http.StatusOK, TokenResponse{
+			Token: token,
 		})
 	}
 }

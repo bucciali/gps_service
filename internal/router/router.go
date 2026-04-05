@@ -1,8 +1,8 @@
 package router
 
 import (
-	"map-backend/internal/auth"
-	"map-backend/internal/handlers"
+	"gps_service/internal/auth"
+	"gps_service/internal/handlers"
 
 	"github.com/go-chi/chi/v5"
 	chimw "github.com/go-chi/chi/v5/middleware"
@@ -15,10 +15,9 @@ func NewRouter(jm *auth.JWTManager, pool *pgxpool.Pool) chi.Router {
 	r.Use(chimw.Logger)
 	r.Use(chimw.Recoverer)
 
-	r.Group(func(r chi.Router) {
-		r.Use(auth.AuthMiddleware(jm))
-		r.Get("/api/points", handlers.GetPointsHandler(pool))
-	})
+	r.Post("/api/auth/login", handlers.DummyLoginHandler(jm, pool))
+
+	r.Get("/api/points", handlers.GetPointsHandler(pool))
 
 	r.Group(func(r chi.Router) {
 		r.Use(auth.AuthMiddleware(jm))

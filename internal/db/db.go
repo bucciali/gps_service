@@ -111,6 +111,17 @@ func GetPoints(ctx context.Context, pool *pgxpool.Pool) ([]Point, error) {
 
 }
 
+func EnsureUserExists(ctx context.Context, userID, email, role string, pool *pgxpool.Pool) error {
+	query := `
+		INSERT INTO users (user_id, email, password_hash, role, created_at)
+		VALUES ($1, $2, $3, $4, now())
+		ON CONFLICT (user_id) DO NOTHING
+	`
+
+	_, err := pool.Exec(ctx, query, userID, email, "dummy_hash", role)
+	return err
+}
+
 func NewPostgresPool(ctx context.Context, dsn string) (*pgxpool.Pool, error) {
 	pool, err := pgxpool.New(ctx, dsn)
 	if err != nil {

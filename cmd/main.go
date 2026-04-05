@@ -2,11 +2,12 @@ package main
 
 import (
 	"context"
+	"gps_service/internal/auth"
+	"gps_service/internal/config"
+	"gps_service/internal/db"
+	"gps_service/internal/router"
 	"log"
-	"map-backend/internal/auth"
-	"map-backend/internal/config"
-	"map-backend/internal/db"
-	"map-backend/internal/router"
+
 	"net/http"
 	"os"
 	"os/signal"
@@ -45,7 +46,7 @@ func main() {
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
 
-	log.Println("shutting down...")
+	log.Println("shutting down")
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
